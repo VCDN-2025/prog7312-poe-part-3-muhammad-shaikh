@@ -358,6 +358,21 @@ This can be used to:
 - You **traverse** it to show related requests.
 - You compute an **MST** and show statistics to prove the algorithm runs on real data.
 
+**Dependency Handling: Main Issue → Dependent Requests**
+
+In real municipal operations, a single infrastructure fault (e.g., a burst water main) can generate many individual service requests (“no water” complaints). The app models this with main issues and dependent requests:
+
+- Each IssueReport may have:
+
+- IsMainIssue : bool
+
+ParentReference : string?
+(null for main issues; set to the main issue’s reference for dependents)
+
+On the Service Request Status page, resolving a main issue automatically updates all dependents with the same ParentReference to Resolved (cascade close).
+
+The graph view links related items (e.g., same category/area); dependents appear directly connected to their main issue.
+
 ---
 
 ### 3.5 Other Supporting Structures Used in the App
