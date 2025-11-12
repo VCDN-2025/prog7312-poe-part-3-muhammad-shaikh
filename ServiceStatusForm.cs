@@ -11,12 +11,14 @@ namespace MunicipalServicesApp
     /// - Binary Search Tree (ServiceRequestTree) for fast reference lookup
     /// - Min-Heap (IssueMinHeap) to show the oldest requests
     /// - Graph (ServiceRequestGraph) for related requests + MST summary
+    /// - Dependency UI: show Type/ParentRef and resolve main → cascade dependents
     /// </summary>
     public class ServiceStatusForm : Form
     {
         private TextBox txtReference;
         private Button btnFind;
         private Button btnClear;
+        private Button btnResolveMain; // NEW: resolve parent & cascade
 
         private ListView lvRequests;
         private Label lblHeader;
@@ -44,7 +46,7 @@ namespace MunicipalServicesApp
         {
             Text = "Service Request Status";
             StartPosition = FormStartPosition.CenterParent;
-            MinimumSize = new Size(980, 680);
+            MinimumSize = new Size(1120, 760); // a bit larger so columns fit easily
             BackColor = Color.White;
             Font = new Font("Segoe UI", 10F);
 
@@ -102,6 +104,14 @@ namespace MunicipalServicesApp
                 RebuildGraph();
             };
 
+            btnResolveMain = new Button
+            {
+                Text = "Resolve",
+                Location = new Point(560, 94),
+                Width = 240
+            };
+            btnResolveMain.Click += BtnResolveMain_Click;
+
             lblCount = new Label
             {
                 Text = "0 request(s)",
@@ -114,18 +124,20 @@ namespace MunicipalServicesApp
             lvRequests = new ListView
             {
                 Location = new Point(24, 164),
-                Size = new Size(920, 220),
+                Size = new Size(1060, 260),
                 View = View.Details,
                 FullRowSelect = true,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
-            // Columns add up to 920 to avoid horizontal scroll
-            lvRequests.Columns.Add("Reference", 140);
-            lvRequests.Columns.Add("Location", 260);
-            lvRequests.Columns.Add("Category", 130);
-            lvRequests.Columns.Add("Status", 110);
-            lvRequests.Columns.Add("Created At", 140);
-            lvRequests.Columns.Add("Summary", 140);
+            // Columns tuned to avoid horizontal scroll at the given min size
+            lvRequests.Columns.Add("Reference", 160);
+            lvRequests.Columns.Add("Type", 90);           // NEW: Main / Dependent / Single
+            lvRequests.Columns.Add("ParentRef", 160);     // NEW: parent reference if any
+            lvRequests.Columns.Add("Category", 140);
+            lvRequests.Columns.Add("Status", 120);
+            lvRequests.Columns.Add("Created At", 160);
+            lvRequests.Columns.Add("Location", 270);
+            lvRequests.Columns.Add("Summary", 260);
 
             lvRequests.DoubleClick += (s, e) =>
             {
@@ -135,6 +147,8 @@ namespace MunicipalServicesApp
 
                 MessageBox.Show(
                     "Reference: " + report.Reference + Environment.NewLine +
+                    "Type: " + GetTypeLabel(report) + Environment.NewLine +
+                    (string.IsNullOrWhiteSpace(report.ParentReference) ? "" : "ParentRef: " + report.ParentReference + Environment.NewLine) +
                     "Location: " + report.Location + Environment.NewLine +
                     "Category: " + report.Category + Environment.NewLine +
                     "Status: " + report.Status + Environment.NewLine +
@@ -152,31 +166,32 @@ namespace MunicipalServicesApp
             {
                 Text = "Related requests (graph traversal)",
                 AutoSize = true,
-                Location = new Point(24, 392),
+                Location = new Point(24, 432),
                 Font = new Font("Segoe UI Semibold", 11F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(60, 60, 60)
             };
 
             lvRelated = new ListView
             {
-                Location = new Point(24, 418),
-                Size = new Size(920, 100),
+                Location = new Point(24, 458),
+                Size = new Size(1060, 120),
                 View = View.Details,
                 FullRowSelect = true,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
-            lvRelated.Columns.Add("Reference", 140);
-            lvRelated.Columns.Add("Category", 130);
-            lvRelated.Columns.Add("Status", 110);
-            lvRelated.Columns.Add("Location", 260);
-            lvRelated.Columns.Add("Summary", 280);
+            lvRelated.Columns.Add("Reference", 160);
+            lvRelated.Columns.Add("Category", 140);
+            lvRelated.Columns.Add("Status", 120);
+            lvRelated.Columns.Add("Location", 300);
+            lvRelated.Columns.Add("Reason", 320); // NEW: shows Dependent-of / Main-for relation
+            lvRelated.Columns.Add("Summary", 260);
 
             // Graph info under related block
             lblGraphInfo = new Label
             {
                 Text = "Graph: n/a",
                 AutoSize = true,
-                Location = new Point(24, 524),
+                Location = new Point(24, 584),
                 ForeColor = Color.FromArgb(80, 80, 80)
             };
 
@@ -185,25 +200,25 @@ namespace MunicipalServicesApp
             {
                 Text = "Oldest requests (heap view)",
                 AutoSize = true,
-                Location = new Point(24, 548),
+                Location = new Point(24, 610),
                 Font = new Font("Segoe UI Semibold", 11F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(60, 60, 60)
             };
 
             lvOldest = new ListView
             {
-                Location = new Point(24, 574),
-                Size = new Size(920, 80),
+                Location = new Point(24, 636),
+                Size = new Size(1060, 100),
                 View = View.Details,
                 FullRowSelect = true,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom
             };
-            lvOldest.Columns.Add("Reference", 140);
-            lvOldest.Columns.Add("Location", 260);
-            lvOldest.Columns.Add("Category", 130);
-            lvOldest.Columns.Add("Status", 110);
-            lvOldest.Columns.Add("Created At", 140);
-            lvOldest.Columns.Add("Summary", 140);
+            lvOldest.Columns.Add("Reference", 160);
+            lvOldest.Columns.Add("Location", 320);
+            lvOldest.Columns.Add("Category", 160);
+            lvOldest.Columns.Add("Status", 140);
+            lvOldest.Columns.Add("Created At", 160);
+            lvOldest.Columns.Add("Summary", 260);
 
             Controls.Add(lblHeader);
             Controls.Add(lblSubtitle);
@@ -211,6 +226,7 @@ namespace MunicipalServicesApp
             Controls.Add(txtReference);
             Controls.Add(btnFind);
             Controls.Add(btnClear);
+            Controls.Add(btnResolveMain); // NEW
             Controls.Add(lblCount);
 
             Controls.Add(lvRequests);
@@ -283,17 +299,68 @@ namespace MunicipalServicesApp
             }
         }
 
+        private void BtnResolveMain_Click(object sender, EventArgs e)
+        {
+            if (lvRequests.SelectedItems.Count == 0)
+            {
+                MessageBox.Show("Select a main issue first.", "No selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var sel = lvRequests.SelectedItems[0].Tag as IssueReport;
+            if (sel == null) return;
+
+            if (!sel.IsMainIssue)
+            {
+                MessageBox.Show("The selected request is not a MAIN issue.\nSelect a main issue to cascade resolution.", "Not a main issue", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Mark main as resolved
+            sel.Status = "Resolved";
+
+            // Cascade: resolve dependents
+            IssueRepository.ForEach(child =>
+            {
+                if (!child.IsMainIssue &&
+                    !string.IsNullOrWhiteSpace(child.ParentReference) &&
+                    string.Equals(child.ParentReference, sel.Reference, StringComparison.OrdinalIgnoreCase))
+                {
+                    child.Status = "Resolved";
+                }
+            });
+
+            // Refresh views
+            LoadAllRequests();
+            LoadOldestRequests();
+            RebuildGraph();
+
+            // Show related again for context
+            UpdateRelated(sel);
+
+            MessageBox.Show("Main issue marked as Resolved and dependents were cascaded.", "Cascade complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private static string GetTypeLabel(IssueReport r)
+        {
+            if (r.IsMainIssue) return "Main";
+            if (!string.IsNullOrWhiteSpace(r.ParentReference)) return "Dependent";
+            return "Single";
+        }
+
         private ListViewItem MakeItem(IssueReport report)
         {
             var item = new ListViewItem(report.Reference ?? "");
-            item.SubItems.Add(report.Location ?? "");
-            item.SubItems.Add(report.Category ?? "");
-            item.SubItems.Add(report.Status ?? "");
-            item.SubItems.Add(report.CreatedAt.ToString("yyyy-MM-dd HH:mm"));
+            item.SubItems.Add(GetTypeLabel(report));                 // Type
+            item.SubItems.Add(report.ParentReference ?? "");         // ParentRef
+            item.SubItems.Add(report.Category ?? "");                // Category
+            item.SubItems.Add(report.Status ?? "");                  // Status
+            item.SubItems.Add(report.CreatedAt.ToString("yyyy-MM-dd HH:mm")); // Created
+            item.SubItems.Add(report.Location ?? "");                // Location
 
             string summary = (report.Description ?? "");
             if (summary.Length > 80) summary = summary.Substring(0, 80) + "…";
-            item.SubItems.Add(summary);
+            item.SubItems.Add(summary);                              // Summary
 
             item.Tag = report;
             return item;
@@ -378,12 +445,12 @@ namespace MunicipalServicesApp
             lvRelated.BeginUpdate();
             lvRelated.Items.Clear();
 
-            IssueReport[] related = _graph.GetRelatedByReference(report.Reference, 5);
+            IssueReport[] related = _graph.GetRelatedByReference(report.Reference, 8);
 
             if (related.Length == 0)
             {
                 lvRelated.Items.Add(
-                    new ListViewItem(new[] { "", "No related requests", "", "", "" })
+                    new ListViewItem(new[] { "", "No related requests", "", "", "", "" })
                 );
             }
             else
@@ -392,6 +459,29 @@ namespace MunicipalServicesApp
                 {
                     if (r.Reference == report.Reference) continue; // skip self
 
+                    string reason;
+                    if (!string.IsNullOrWhiteSpace(r.ParentReference) &&
+                        string.Equals(r.ParentReference, report.Reference, StringComparison.OrdinalIgnoreCase))
+                    {
+                        reason = $"Dependent of {report.Reference}";
+                    }
+                    else if (report.IsMainIssue &&
+                             !string.IsNullOrWhiteSpace(report.Reference) &&
+                             string.Equals(report.Reference, r.ParentReference, StringComparison.OrdinalIgnoreCase))
+                    {
+                        reason = $"Dependent of {report.Reference}";
+                    }
+                    else if (!report.IsMainIssue &&
+                             !string.IsNullOrWhiteSpace(report.ParentReference) &&
+                             string.Equals(report.ParentReference, r.Reference, StringComparison.OrdinalIgnoreCase))
+                    {
+                        reason = $"Main for {report.Reference}";
+                    }
+                    else
+                    {
+                        reason = "Graph similarity (category/location)";
+                    }
+
                     string summary = (r.Description ?? "");
                     if (summary.Length > 60) summary = summary.Substring(0, 60) + "…";
 
@@ -399,6 +489,7 @@ namespace MunicipalServicesApp
                     item.SubItems.Add(r.Category ?? "");
                     item.SubItems.Add(r.Status ?? "");
                     item.SubItems.Add(r.Location ?? "");
+                    item.SubItems.Add(reason);
                     item.SubItems.Add(summary);
                     item.Tag = r;
                     lvRelated.Items.Add(item);
@@ -407,7 +498,7 @@ namespace MunicipalServicesApp
                 if (lvRelated.Items.Count == 0)
                 {
                     lvRelated.Items.Add(
-                        new ListViewItem(new[] { "", "No related requests", "", "", "" })
+                        new ListViewItem(new[] { "", "No related requests", "", "", "", "" })
                     );
                 }
             }

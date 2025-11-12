@@ -3,8 +3,9 @@
 namespace MunicipalServicesApp
 {
     /// <summary>
-    /// Seeds some demo service requests into IssueRepository so that
+    /// Seeds demo service requests into IssueRepository so that
     /// ServiceStatusForm can show data for your demo video.
+    /// Includes dependency clusters (main issue + dependent requests).
     /// </summary>
     public static class SampleIssueSeeder
     {
@@ -17,7 +18,7 @@ namespace MunicipalServicesApp
             if (IssueRepository.Count > 0) return;
             _seeded = true;
 
-            // Area: Durban CBD, category SANITATION & ROADS
+            // ========= Cluster A: Durban CBD (general items) =========
             Add(
                 category: "Sanitation",
                 location: "123 Florence Nzama St, Durban CBD",
@@ -39,7 +40,7 @@ namespace MunicipalServicesApp
                 daysAgo: -15,
                 status: "In Progress");
 
-            // Area: KwaMashu (roads cluster)
+            // ========= Cluster B: KwaMashu (roads) =========
             Add(
                 category: "Roads & Stormwater",
                 location: "M25, KwaMashu",
@@ -54,29 +55,65 @@ namespace MunicipalServicesApp
                 daysAgo: -6,
                 status: "In Progress");
 
-            // Area: Phoenix (water + electricity cluster)
-            Add(
+            // ========= Cluster C (DEPENDENCY): Phoenix Water main burst =========
+            // Main/root issue
+            var mainWater = Add(
                 category: "Water & Utilities",
                 location: "Phoenix Highway, Phoenix",
-                description: "Ongoing water leak in the middle of the road, constant stream for two weeks.",
+                description: "MAIN ISSUE: Bulk trunk main burst near Phoenix Highway. Crews dispatched.",
                 daysAgo: -5,
-                status: "Received");
+                status: "In Progress",
+                isMainIssue: true);
 
+            // Dependents (household complaints relying on the main water issue)
             Add(
                 category: "Water & Utilities",
                 location: "Trenance Park, Phoenix",
-                description: "Low water pressure and intermittent supply reported by multiple households.",
+                description: "No water supply since early morning. Multiple households affected.",
                 daysAgo: -3,
-                status: "In Progress");
+                status: "Received",
+                isMainIssue: false,
+                parentRef: mainWater.Reference);
 
+            Add(
+                category: "Water & Utilities",
+                location: "Phoenix Industrial Area",
+                description: "Low water pressure across several factories on Phoenix Industrial.",
+                daysAgo: -3,
+                status: "Received",
+                isMainIssue: false,
+                parentRef: mainWater.Reference);
+
+            // ========= Cluster D (DEPENDENCY): Electricity substation fault =========
+            // Main/root issue (already resolved)
+            var mainPower = Add(
+                category: "Electricity",
+                location: "Longcroft Substation, Phoenix",
+                description: "MAIN ISSUE: Substation feeder fault affecting Longcroft & surrounds.",
+                daysAgo: -2,
+                status: "Resolved",          // main fixed
+                isMainIssue: true);
+
+            // Dependents (should auto-close because parent is resolved)
             Add(
                 category: "Electricity",
                 location: "Longcroft, Phoenix",
-                description: "Multiple households without power after storm. Neighbouring street already restored.",
+                description: "Power outage since storm. Neighbouring street restored, ours still down.",
                 daysAgo: -2,
-                status: "In Progress");
+                status: "In Progress",
+                isMainIssue: false,
+                parentRef: mainPower.Reference);
 
-            // Area: uMlazi (safety + electricity cluster)
+            Add(
+                category: "Electricity",
+                location: "Woodview, Phoenix",
+                description: "Intermittent power dips after the storm.",
+                daysAgo: -1,
+                status: "Received",
+                isMainIssue: false,
+                parentRef: mainPower.Reference);
+
+            // ========= Cluster E: uMlazi (safety + electricity) =========
             Add(
                 category: "Electricity",
                 location: "uMlazi V Section, uMlazi",
@@ -91,7 +128,7 @@ namespace MunicipalServicesApp
                 daysAgo: -8,
                 status: "Received");
 
-            // Parks / recreation
+            // ========= Cluster F: Parks / Housing / Other =========
             Add(
                 category: "Parks & Recreation",
                 location: "People's Park, Moses Mabhida, Durban",
@@ -99,7 +136,6 @@ namespace MunicipalServicesApp
                 daysAgo: -7,
                 status: "In Progress");
 
-            // Housing
             Add(
                 category: "Housing",
                 location: "Cornubia Housing Project, Cornubia",
@@ -114,7 +150,6 @@ namespace MunicipalServicesApp
                 daysAgo: -18,
                 status: "In Progress");
 
-            // Citywide / Other
             Add(
                 category: "Other",
                 location: "Online, Citywide",
@@ -128,23 +163,69 @@ namespace MunicipalServicesApp
                 description: "Request for improved security presence during evening events.",
                 daysAgo: -11,
                 status: "Received");
+
+            // ========= Auto-cascade: if a main issue is Resolved, close its dependents =========
+            CascadeResolvedParents();
         }
 
-        private static void Add(string category, string location, string description, int daysAgo, string status)
+        /// <summary>
+        /// Adds a new IssueReport with optional dependency flags.
+        /// </summary>
+        private static IssueReport Add(
+            string category,
+            string location,
+            string description,
+            int daysAgo,
+            string status,
+            bool isMainIssue = false,
+            string parentRef = null)
         {
-            var report = new IssueReport();
-            report.Reference = ReferenceGenerator.Next();
-            report.Location = location;
-            report.Category = category;
-            report.Description = description;
-            report.CreatedAt = DateTime.Now.AddDays(daysAgo);
-            report.Status = status;
+            var report = new IssueReport
+            {
+                Reference = ReferenceGenerator.Next(),
+                Location = location,
+                Category = category,
+                Description = description,
+                CreatedAt = DateTime.Now.AddDays(daysAgo),
+                Status = status,
+                IsMainIssue = isMainIssue,
+                ParentReference = parentRef
+            };
 
             // Empty attachment list using custom linked list
-            var atts = new SimpleLinkedList<string>();
-            report.Attachments = atts;
+            report.Attachments = new SimpleLinkedList<string>();
 
             IssueRepository.Add(report);
+            return report;
+        }
+
+        /// <summary>
+        /// Walks the repository: whenever a main issue is Resolved,
+        /// mark all dependents (ParentReference == main.Reference) as Resolved too.
+        /// </summary>
+        private static void CascadeResolvedParents()
+        {
+            // First collect all resolved parents
+            var resolvedParents = new SimpleLinkedList<string>();
+            IssueRepository.ForEach(r =>
+            {
+                if (r.IsMainIssue && string.Equals(r.Status, "Resolved", StringComparison.OrdinalIgnoreCase))
+                    resolvedParents.Add(r.Reference);
+            });
+
+            // For each resolved parent, close its dependents
+            resolvedParents.ForEach(parentRef =>
+            {
+                IssueRepository.ForEach(child =>
+                {
+                    if (!child.IsMainIssue &&
+                        !string.IsNullOrWhiteSpace(child.ParentReference) &&
+                        string.Equals(child.ParentReference, parentRef, StringComparison.OrdinalIgnoreCase))
+                    {
+                        child.Status = "Resolved";
+                    }
+                });
+            });
         }
     }
 }
