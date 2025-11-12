@@ -419,3 +419,25 @@ These support the full rubric across **Parts 1–3**.
 
 - Seeded **sample data** (via `SampleIssueSeeder.Seed()` and `IssueRepository`)
 
+
+## References
+
+Albahari, J. and Albahari, B. (2022) *C# 10 in a Nutshell: The Definitive Reference*. 1st edn. Sebastopol, CA: O’Reilly Media.  
+— General C# and .NET language / library reference (collections, LINQ, etc.).
+
+Liberty, J. and MacDonald, M. (2014) *Programming C# 5.0: Building Windows 8, Web, and Desktop Applications*. 6th edn. Sebastopol, CA: O’Reilly Media.  
+— Used as background for Windows Forms and desktop app patterns.
+
+Microsoft (2025) *Windows Forms documentation*. Available at: https://learn.microsoft.com/dotnet/desktop/winforms/ (Accessed: 12 November 2025).  
+— Official documentation for designing and handling events in Windows Forms.
+
+Weiss, M.A. (2014) *Data Structures and Algorithm Analysis in C++*. 4th edn. Harlow: Pearson.  
+— Conceptual reference for binary search trees, heaps and graph algorithms (traversals, MST).
+
+Skiena, S.S. (2020) *The Algorithm Design Manual*. 3rd edn. Cham: Springer.  
+— Background on graph algorithms, shortest paths and minimum spanning trees used to inspire the service request graph/MST logic.
+
+Chacon, S. and Straub, B. (2014) *Pro Git*. 2nd edn. New York: Apress. Available at: https://git-scm.com/book/en/v2 (Accessed: 12 November 2025).  
+— Used for understanding Git/GitHub workflow for version control and project hosting.
+
+
