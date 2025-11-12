@@ -434,6 +434,15 @@ These support the full rubric across **Parts 1–3**.
 
 - Seeded **sample data** (via `SampleIssueSeeder.Seed()` and `IssueRepository`)
 
+**AI Use Declaration**
+I used AI assistance (ChatGPT) to speed up drafting and refinement across this project. Specifically, AI was used to:
+
+- Propose and explain data structures (custom BST, min-heap, graph) and generate starter implementations which I reviewed, integrated, and tested.
+- Provide sample seed data for demos and help with Git/GitHub command sequences.
+- Generate simple logo assets used in the header.
+All AI-produced outputs were verified, edited, and tested by me. Final design choices, code integration, debugging, and validation remain my own work and responsibility.
+
+
 
 ## References
 
